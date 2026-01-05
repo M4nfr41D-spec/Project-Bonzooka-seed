@@ -84,14 +84,19 @@ export const World = {
     State.player.vx = 0;
     State.player.vy = 0;
 
-    // Snap camera to player
+    // Snap camera to player (clamped to zone bounds to prevent initial camera drift)
     const canvas = document.getElementById('gameCanvas');
     const screenW = canvas?.width || 800;
     const screenH = canvas?.height || 600;
-    Camera.snapTo(
-      State.player.x - screenW / 2,
-      State.player.y - screenH / 2
-    );
+    const mapW = this.currentZone.width || 2000;
+    const mapH = this.currentZone.height || 2000;
+
+    const rawX = State.player.x - screenW / 2;
+    const rawY = State.player.y - screenH / 2;
+    const clampedX = Math.max(0, Math.min(mapW - screenW, rawX));
+    const clampedY = Math.max(0, Math.min(mapH - screenH, rawY));
+
+    Camera.snapTo(clampedX, clampedY);
 
     // Reset zone-combat counters
     this.spawnedEnemyCount = 0;
