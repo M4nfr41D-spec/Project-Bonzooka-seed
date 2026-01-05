@@ -18,24 +18,27 @@ export const Enemies = {
       return enemy;
     }
     
-    const waveScale = this.getWaveScale();
+    const scale = this.getWorldScale();
+    const hpScale = scale.hpScale;
+    const dmgScale = scale.dmgScale;
+    const xpScale = scale.xpScale;
     const cfg = State.data.config?.waves || {};
     const eliteMult = cfg.eliteHPMult || 2.5;
     const bossMult = cfg.bossHPMult || 8;
     
     const enemy = {
-      id: 'e_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+      id: 'e_' + ((State.run.enemySerial = (State.run.enemySerial || 0) + 1) >>> 0).toString(36),
       type: type,
       x: x,
       y: y,
       vx: 0,
       vy: 0,
-      hp: enemyData.hp * waveScale * (isElite ? eliteMult : 1) * (isBoss ? bossMult : 1),
-      maxHP: enemyData.hp * waveScale * (isElite ? eliteMult : 1) * (isBoss ? bossMult : 1),
-      damage: enemyData.damage * waveScale,
+      hp: enemyData.hp * hpScale * (isElite ? eliteMult : 1) * (isBoss ? bossMult : 1),
+      maxHP: enemyData.hp * hpScale * (isElite ? eliteMult : 1) * (isBoss ? bossMult : 1),
+      damage: enemyData.damage * dmgScale,
       speed: enemyData.speed,
       score: enemyData.score * (isElite ? 3 : 1) * (isBoss ? 10 : 1),
-      xp: enemyData.xp * (isElite ? 2 : 1) * (isBoss ? 5 : 1),
+      xp: Math.floor(enemyData.xp * xpScale * (isElite ? 2 : 1) * (isBoss ? 5 : 1)),
       color: isElite ? '#ffaa00' : (isBoss ? '#ff3355' : enemyData.color),
       size: (isBoss ? 50 : (isElite ? 30 : 22)),
       isElite: isElite,

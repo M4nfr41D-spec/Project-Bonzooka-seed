@@ -25,6 +25,7 @@ import { Camera } from './runtime/world/Camera.js';
 import { World } from './runtime/world/World.js';
 import { SceneManager } from './runtime/world/SceneManager.js';
 import { SeededRandom } from './runtime/world/SeededRandom.js';
+import { seedFromParts } from './runtime/world/SeedUtil.js';
 
 // ============================================================
 // GAME CONTROLLER
@@ -58,6 +59,22 @@ const Game = {
     
     // Load save
     Save.load();
+    
+    // Ensure deterministic world seed is present (persisted in save)
+    if (!State.meta.worldSeed || State.meta.worldSeed === 0) {
+      State.meta.worldSeed = randomSeed();
+      Save.save();
+    }
+    if (typeof State.meta.runIndex !== 'number') {
+      State.meta.runIndex = 0;
+      Save.save();
+    }
+
+    // Ensure persistent world seed (used for reproducible runs)
+    if (!State.meta.worldSeed || State.meta.worldSeed === 0) {
+      State.meta.worldSeed = SeededRandom.fromString('WORLD_' + Date.now() + '_' + Math.random());
+    }
+    if (typeof State.meta.runIndex !== 'number') State.meta.runIndex = 0;
     
     // Register modules in State for cross-module access
     State.modules = {
@@ -420,29 +437,52 @@ const Game = {
   
   startAct(actId) {
     console.log(`🎮 Starting ${actId}...`);
-    
-    // Generate seed (can be customized)
-    const seed = SeededRandom.fromString(actId + '_' + Date.now());
-    
+
     // Hide hub modal
     this.hideModal('hubModal');
-    
-    // Reset run state
+
+    // Reset run state FIRST (so we don't wipe seeds)
     resetRun();
     State.run.active = true;
     State.run.currentAct = actId;
-    
+
+    // Increment run index & persist (prevents simple reroll abuse)
+    State.meta.runIndex = (State.meta.runIndex || 0) + 1;
+    Save.save();
+
+    // Deterministic run seed: worldSeed + runIndex + actId (+ seedVersion)
+    const seedVersion = State.data.config?.seedVersion ?? State.data.config?.version ?? 1;
+    const runSeed = seedFromParts(
+      State.meta.worldSeed || 0,
+      'RUN', State.meta.runIndex,
+      'ACT', actId,
+      'VER', seedVersion
+    );
+
+    // Attach run RNG streams
+    State.run.seed = (runSeed >>> 0);
+    State.run.seeds = {
+      run: (runSeed >>> 0),
+      loot: seedFromParts(runSeed, 'LOOT')
+    };
+    State.run.rng = {
+      run: new SeededRandom(State.run.seeds.run),
+      loot: new SeededRandom(State.run.seeds.loot)
+    };
+    State.run.enemySerial = 0;
+    State.run.lootSerial = 0;
+
     // Calculate stats and init HP
     Stats.calculate();
     Stats.initializeHP();
-    
+
     // Start the act via SceneManager
-    SceneManager.startAct(actId, seed);
-    
+    SceneManager.startAct(actId, runSeed);
+
     // Announce
     const actName = State.data.acts?.[actId]?.name || actId;
     this.announce(`⚔️ ${actName.toUpperCase()}`, 'boss');
-    
+
     UI.renderAll();
   },
   

@@ -8,10 +8,33 @@
 
 import { State } from './State.js';
 import { getItemData, getRandomAffix } from './DataLoader.js';
+import { SeededRandom } from './world/SeededRandom.js';
 
 export const Items = {
+  // Accept either a SeededRandom instance, a numeric seed, or null
+  resolveRng(rngOrSeed = null) {
+    if (!rngOrSeed) return null;
+    if (typeof rngOrSeed === 'object' && typeof rngOrSeed.next === 'function') return rngOrSeed;
+    if (typeof rngOrSeed === 'number') return new SeededRandom(rngOrSeed >>> 0);
+    return null;
+  },
+
+  rand(rng) {
+    return rng ? rng.next() : Math.random();
+  },
+
+  randRange(rng, min, max) {
+    return min + this.rand(rng) * (max - min);
+  },
+
+  randInt(rng, min, max) {
+    if (rng) return rng.int(min, max);
+    return Math.floor(min + Math.random() * (max - min + 1));
+  },
+
   // Generate a random item
-  generate(baseId, forceRarity = null) {
+  generate(baseId, forceRarity = null, rngOrSeed = null) {
+    const rng = this.resolveRng(rngOrSeed);
     const baseData = getItemData(baseId);
     if (!baseData) {
       console.warn('Items.generate: Unknown item', baseId);
@@ -22,12 +45,12 @@ export const Items = {
     if (!rarities) return null;
     
     // Roll rarity
-    const rarity = forceRarity || this.rollRarity(baseData.rarities);
+    const rarity = forceRarity || this.rollRarity(baseData.rarities, rng);
     const rarityData = rarities[rarity];
     
     // Create item
     const item = {
-      id: this.generateId(),
+      id: this.generateId(rng),
       baseId: baseId,
       name: baseData.name,
       slot: baseData.slot,
@@ -42,23 +65,23 @@ export const Items = {
     
     // Roll base stats with rarity multiplier
     for (const [stat, range] of Object.entries(baseData.stats || {})) {
-      const base = range[0] + Math.random() * (range[1] - range[0]);
+      const base = this.randRange(rng, range[0], range[1]);
       item.stats[stat] = Math.round(base * rarityData.powerMult * 10) / 10;
     }
     
     // Roll affixes based on rarity
-    const numAffixes = Math.floor(Math.random() * (rarityData.maxAffixes + 1));
+    const numAffixes = this.randInt(rng, 0, rarityData.maxAffixes);
     const usedStats = new Set();
     
     for (let i = 0; i < numAffixes; i++) {
       const type = i < numAffixes / 2 ? 'prefix' : 'suffix';
-      const affix = getRandomAffix(rarity, type);
+      const affix = getRandomAffix(rarity, type, rng);
       
       // Avoid duplicate stat types
       if (affix && !usedStats.has(affix.stat)) {
         usedStats.add(affix.stat);
         
-        const value = affix.range[0] + Math.random() * (affix.range[1] - affix.range[0]);
+        const value = this.randRange(rng, affix.range[0], affix.range[1]);
         item.affixes.push({
           id: affix.id,
           name: affix.name,
@@ -103,7 +126,7 @@ export const Items = {
     }
     
     // Roll
-    let roll = Math.random() * total;
+    let roll = (rng ? rng.next() : Math.random()) * total;
     for (const [rarity, weight] of Object.entries(weights)) {
       roll -= weight;
       if (roll <= 0) return rarity;
@@ -125,12 +148,17 @@ export const Items = {
   },
   
   // Generate unique item ID
-  generateId() {
+  generateId(rngOrSeed = null) {
+    const rng = this.resolveRng(rngOrSeed);
+    if (rng) {
+      return 'item_' + (rng.state >>> 0).toString(36) + '_' + Math.floor(rng.next() * 1e9).toString(36);
+    }
     return 'item_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 6);
   },
   
   // Get random item from any category
-  generateRandom(forceRarity = null) {
+  generateRandom(forceRarity = null, rngOrSeed = null) {
+    const rng = this.resolveRng(rngOrSeed);
     const items = State.data.items;
     if (!items) return null;
     
@@ -144,8 +172,8 @@ export const Items = {
     
     if (allIds.length === 0) return null;
     
-    const randomId = allIds[Math.floor(Math.random() * allIds.length)];
-    return this.generate(randomId, forceRarity);
+    const randomId = allIds[this.randInt(rng, 0, allIds.length - 1)];
+    return this.generate(randomId, forceRarity, rng);
   },
   
   // Add item to stash

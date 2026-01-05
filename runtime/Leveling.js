@@ -20,8 +20,10 @@ export const Leveling = {
   
   // Add XP and check for level up
   addXP(amount) {
-    const maxLevel = getConfig('progression.maxLevel', 100);
-    
+    const maxLevelCfg = getConfig('progression.maxLevel', 0);
+    // 0 or <= 0 means "unlimited"
+    const maxLevel = (typeof maxLevelCfg === 'number' && maxLevelCfg > 0) ? maxLevelCfg : Infinity;
+
     if (State.meta.level >= maxLevel) {
       // Mastery XP or similar could be added here
       return false;

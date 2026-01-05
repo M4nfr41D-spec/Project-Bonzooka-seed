@@ -43,6 +43,10 @@ export const State = {
   world: {
     currentZone: null,
     currentAct: null,
+    seed: 0,
+    seeds: {},
+    rng: null,
+    lootCounter: 0,
     zoneIndex: 0
   },
   
@@ -53,6 +57,10 @@ export const State = {
     xp: 0,
     skillPoints: 0,
     statPoints: 0,
+
+    // Deterministic world seed (persisted; used for reproducible runs)
+    worldSeed: 0,
+    runIndex: 0,
 
     // Endless depth progression (saved)
     depth: {
@@ -77,6 +85,12 @@ export const State = {
     active: false,
     inCombat: false,
     currentAct: null,
+    // Deterministic run seed & RNG streams
+    seed: 0,
+    seeds: { run: 0, loot: 0 },
+    rng: { loot: null },
+    enemySerial: 0,
+    lootSerial: 0,
     wave: 0,
     cells: 0,
     scrapEarned: 0,
@@ -155,6 +169,10 @@ export function resetRun() {
     active: false,
     inCombat: false,
     currentAct: null,
+    seed: 0,
+    seeds: {},
+    rng: null,
+    lootCounter: 0,
     wave: 0,
     cells: 0,
     scrapEarned: 0,
