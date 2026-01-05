@@ -46,21 +46,22 @@ export const SceneManager = {
   // Start an act/combat
   startAct(actId, seed = null) {
     this.startTransition('warp', async () => {
-      this.currentScene = 'loading';
-      State.scene = 'loading';
-      
-      // Initialize world
-      const success = await World.init(actId, seed);
-      
-      if (success) {
+      try {
+        this.currentScene = 'loading';
+        State.scene = 'loading';
+
+        // Initialize world (zone generation can throw if data/config is invalid)
+        const success = await World.init(actId, seed);
+        if (!success) throw new Error(`World.init() returned false for act: ${actId}`);
+
         this.currentScene = 'combat';
         State.scene = 'combat';
         State.run.inCombat = true;
         State.run.currentAct = actId;
-        
+
         // Hide hub UI, show game UI
         this.showCombatUI();
-        
+
         // Reset run stats
         State.run.wave = 1;
         State.run.kills = 0;
@@ -73,16 +74,23 @@ export const SceneManager = {
           bossesKilled: 0,
           timeStarted: Date.now()
         };
-        
+
         // Initialize player HP
         State.modules.Stats?.initializeHP();
-      } else {
-        console.error('Failed to load act:', actId);
-        this.goToHub();
+      } catch (err) {
+        console.error('❌ startAct failed:', err);
+
+        // Fail-safe: never get stuck in loading
+        this.currentScene = 'hub';
+        State.scene = 'hub';
+        State.run.inCombat = false;
+
+        this.showHubUI();
+        State.modules.Save?.save();
       }
     });
   },
-  
+
   // Return to hub (portal, death, etc)
   returnToHub(reason = 'portal') {
     if (reason === 'death') {
